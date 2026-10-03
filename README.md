@@ -6,6 +6,8 @@ ZERO-L is a storm umbrella designed so the wind cannot lift it or turn it inside
 
 **Interactive version:** download or clone this repository and open [`index.html`](index.html) in any browser. It runs offline and includes the drawings, a wind lab, the opening mechanism and the gust valves you can drive yourself.
 
+**Storm simulator:** open [`simulation.html`](simulation.html) to watch ZERO-L and a normal umbrella face the same turbulent wind and rain in real time. See [Simulation](#simulation).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/dark/lift.svg">
   <img alt="Pressure arrows on two canopies in a 15 m/s crosswind. On the normal dome, suction on top and pressure underneath both push up, giving about 86 N of lift. On the ZERO-L lens, top and bottom are mirror images and cancel, so lift is zero." src="docs/light/lift.svg">
@@ -88,6 +90,28 @@ Each valve is a pair: a flap on the top skin that opens outward and a flap on th
 6. **Rain starts driving sideways.** Tip it about 10° into the wind. That covers your head and shoulders and turns the force into a steady downward push.
 7. **Strong sun.** The reflective top and the air gap keep the underside near air temperature. Hold it lower to shade your shoulders.
 8. **Close it and dry it.** Dry it open; the valves let air through the gap between the skins.
+
+## Simulation
+
+![Storm simulator in a 10 m/s monsoon squall: the normal umbrella has turned inside out while ZERO-L holds level with 3 N of uplift](docs/simulation.png)
+
+[`simulation.html`](simulation.html) puts two people side by side in the same storm, one with a normal umbrella and one with ZERO-L. Both feel exactly the same air. It runs in real time:
+
+- **Wind:** mean wind plus turbulence (along-street gusts with a 60 m length scale; vertical gusts at 45% of that intensity with a 4 m scale), carried down the street at the mean speed. You can watch a gust travel through the rain before it arrives, or send one yourself (from below, from above, or a squall).
+- **Aerodynamics:** the same model as [`model/zerol-model.js`](model/zerol-model.js), driven by the air speed relative to the moving canopy. Gust lift acts 0.25 m upwind of the centre and builds up over 1.5 canopy lengths of travel. ZERO-L's valves open in 40 ms and close in 80 ms.
+- **The person:** the arm is a 900 N/m spring. The hand resists tilt with muscle stiffness plus a slower correction after a 150 ms reaction delay, limited to 26 N·m with one hand or 50 N·m with two. A normal umbrella inverts at 60 N of uplift; either is torn away above 170 N (one hand) or 280 N (two hands).
+- **Rain:** Marshall–Palmer drop sizes at their terminal speeds. Each drop takes about v<sub>t</sub>/g to catch up with a gust and carries water in proportion to D³. Water reaching the head and shoulders is counted.
+
+**What it found.** The static model missed one effect: a flat canopy's gust lift acts ahead of the shaft, so every gust also twists the umbrella in your hand. With one-way valves, downward gusts go unrelieved and can tip ZERO-L into the wind faster than a hand reacts. In gusty city air (25% turbulence, 60 s runs):
+
+| Mean wind | Normal umbrella | ZERO-L, one-way valves (as designed) | ZERO-L, two-way valves (phase 2) |
+|---|---|---|---|
+| 8 m/s | inside out within 5 s | holds | holds |
+| 11 m/s | inside out at once | holds one-handed | holds one-handed |
+| 15 m/s | inside out, then torn away | needs two hands | holds one-handed |
+| 20 m/s | torn away | torn away | holds with two hands |
+
+So the "controllable to 20 m/s" target needs the phase 2 two-way valves. The simulator has a switch to compare both.
 
 ## Build a prototype
 
@@ -173,5 +197,7 @@ The arguments are wind speed in m/s, tilt into the wind in degrees and gust angl
 | Path | What it is |
 |---|---|
 | `index.html` | The full interactive design note: drawings, real-world mechanism, gust valve, wind lab, build guide. Open it in a browser. |
+| `simulation.html` | Real-time storm simulator: both umbrellas in the same turbulent wind and rain |
+| `docs/simulation.png` | Simulator screenshot used in this README |
 | `model/zerol-model.js` | The force model as a Node.js script and module |
 | `docs/light`, `docs/dark` | Figures used in this README, exported from `index.html` |

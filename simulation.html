@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="ZERO-L storm simulator: a normal umbrella and ZERO-L side by side in the same simulated turbulent wind and rain.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Cpath d=%27M2 15 L16 9 L30 15 L16 21 Z%27 fill=%27%231A9FC2%27/%3E%3Cpath d=%27M16 9 V30%27 stroke=%27%23E2EBEC%27 stroke-width=%272.5%27/%3E%3C/svg%3E">
+<style>body{margin:0}[hidden]{display:none!important}</style>
+<title>ZERO-L Storm Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+/* Layout: a storm console. Two identical street scenes side by side under the same wind and rain
+   (normal umbrella left, ZERO-L right), the controls beneath, live telemetry strip charts, then
+   the event log and the model notes. Deliberately single-theme dark: it is a night-storm instrument. */
+:root{
+  --bg:#0A1013; --panel:#0F181C; --panel-2:#142128; --ink:#E2EBEC; --ink-2:#A6B8BD; --ink-3:#84979D; --rule:#22333A;
+  --conv:#D2702A; --zl:#1A9FC2; --good:#5BBE84; --warn:#E0A53A; --crit:#F0705F;
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:20px;padding-block:18px 56px;display:grid;gap:16px}
+a{color:var(--zl)}
+:focus-visible{outline:2px solid var(--zl);outline-offset:2px}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.brand{display:flex;align-items:baseline;gap:6px 14px;flex-wrap:wrap}
+.mark{font-family:var(--f-display);font-stretch:125%;font-weight:800;font-size:clamp(30px,4.6vw,46px);letter-spacing:-.01em;line-height:1}
+.mark b{color:var(--zl);font-weight:800}
+.kicker{font-family:var(--f-mono);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.lede{margin:8px 0 0;max-width:64ch;color:var(--ink-2);font-size:15.5px}
+.hdr-r{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.clock{font-family:var(--f-mono);font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.navlink{font-family:var(--f-mono);font-size:13px;color:var(--ink);text-decoration:none;border:1px solid var(--rule);border-radius:999px;padding:6px 12px}
+.navlink:hover{border-color:var(--ink-3)}
+
+.stage{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:860px){.stage{grid-template-columns:minmax(0,1fr)}}
+.scene{background:var(--panel);border:1px solid var(--rule);border-radius:6px;overflow:hidden;display:grid;min-width:0}
+.hud{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;flex-wrap:wrap}
+.hud h2{margin:0;font-family:var(--f-display);font-stretch:110%;font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;flex:none}
+.sw.conv{background:var(--conv)} .sw.zl{background:var(--zl)}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:12px;font-weight:600;padding:2px 10px 2px 8px;border-radius:999px;border:1.5px solid currentColor;white-space:nowrap}
+.pill.good{color:var(--good)} .pill.warn{color:var(--warn)} .pill.crit{color:var(--crit)}
+.pill.info{color:var(--zl)}
+.scene canvas{display:block;width:100%;aspect-ratio:16/10;background:#0B151B}
+.nums{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin:0;border-top:1px solid var(--rule)}
+.nums div{padding:8px 10px;border-right:1px solid var(--rule);min-width:0}
+.nums div:last-child{border-right:0}
+.nums dt{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nums dd{margin:2px 0 0;font-family:var(--f-mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:560px){.nums{grid-template-columns:repeat(3,minmax(0,1fr))}.nums div:nth-child(3){border-right:0}.nums div:nth-child(n+4){border-top:1px solid var(--rule)}}
+
+.console{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:16px;display:grid;gap:16px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lbl{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin-right:6px}
+.btn{font:500 13px var(--f-mono);color:var(--ink);background:var(--panel-2);border:1px solid var(--rule);border-radius:999px;padding:7px 13px;cursor:pointer}
+.btn:hover{border-color:var(--ink-3)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--zl);color:#06141A;border-color:var(--zl);font-weight:600}
+.ctls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 24px}
+@media (max-width:1000px){.ctls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.ctls{grid-template-columns:minmax(0,1fr)}}
+.ctl{display:grid;gap:5px;min-width:0}
+.ctl .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ctl label,.ctl .name{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.ctl output{font-family:var(--f-mono);font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums}
+.ctl .hint{font-size:12.5px;color:var(--ink-3);font-family:var(--f-mono);line-height:1.4}
+input[type=range]{width:100%;accent-color:var(--zl);margin:0}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:999px;overflow:hidden;width:max-content;max-width:100%}
+.seg button{font:500 12.5px var(--f-mono);background:transparent;color:var(--ink-2);border:0;padding:6px 12px;cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.tog{display:inline-flex;gap:8px;align-items:center;font-family:var(--f-mono);font-size:12.5px;color:var(--ink-2);cursor:pointer}
+.tog input{accent-color:var(--zl);width:16px;height:16px;margin:0}
+
+.tele{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media (max-width:1000px){.tele{grid-template-columns:minmax(0,1fr)}}
+.chart{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:12px;display:grid;gap:6px;min-width:0;position:relative}
+.chart h3{margin:0;font-family:var(--f-display);font-size:14px;font-weight:700;font-stretch:105%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-family:var(--f-mono);font-size:11.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:16px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
+.chart canvas{display:block;width:100%;height:150px;cursor:crosshair}
+.tip{position:absolute;top:44px;pointer-events:none;background:var(--panel-2);border:1px solid var(--rule);border-radius:4px;padding:6px 9px;
+  font-family:var(--f-mono);font-size:12px;line-height:1.5;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.4)}
+
+.lower{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:14px}
+@media (max-width:900px){.lower{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:16px;min-width:0;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;align-content:start}
+.card h3{margin:0;font-family:var(--f-display);font-size:15px;font-weight:700;font-stretch:110%;letter-spacing:.02em}
+ol.log{list-style:none;margin:0;padding:0;display:grid;gap:7px;font-family:var(--f-mono);font-size:12.5px}
+ol.log li{display:grid;grid-template-columns:54px 10px minmax(0,1fr);gap:8px;align-items:baseline}
+ol.log .tm{color:var(--ink-3);font-variant-numeric:tabular-nums}
+ol.log .sw{width:8px;height:8px}
+ol.log .empty{display:block;color:var(--ink-3)}
+.notes{font-size:14.5px;color:var(--ink-2);display:grid;gap:10px}
+.notes ul{margin:0;padding-left:1.1em;display:grid;gap:6px}
+.notes b{color:var(--ink);font-weight:600}
+.finding{border-left:3px solid var(--warn);padding:4px 0 4px 12px;color:var(--ink);font-size:15px;min-width:0}
+.finding table{border-collapse:collapse;font-family:var(--f-mono);font-size:12.5px;margin-top:8px;font-variant-numeric:tabular-nums}
+.finding th,.finding td{padding:4px 12px 4px 0;text-align:left;border-bottom:1px solid var(--rule);font-weight:400;white-space:nowrap}
+.finding th{color:var(--ink-3)}
+.tablewrap{overflow-x:auto}
+@media (max-width:520px){.wrap{padding-inline:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand"><span class="mark">ZERO<b>&#8209;L</b></span><span class="kicker">Storm simulator</span></div>
+      <p class="lede">Two people, the same storm. On the left an ordinary umbrella, on the right ZERO-L. Both feel exactly the same gusts and the same rain, simulated in real time, and both are held by a hand with human strength and reaction time.</p>
+    </div>
+    <div class="hdr-r">
+      <span class="clock" id="clock">t = 0.0 s</span>
+      <a class="navlink" href="index.html">Design note</a>
+    </div>
+  </header>
+
+  <section class="stage" aria-label="Simulation scenes">
+    <div class="scene">
+      <div class="hud"><h2><span class="sw conv"></span>Normal umbrella</h2><div class="pills" id="pillsC"></div></div>
+      <canvas id="cvC" role="img" aria-label="Street scene: a person holding a normal umbrella in the simulated storm"></canvas>
+      <dl class="nums" id="numsC"></dl>
+    </div>
+    <div class="scene">
+      <div class="hud"><h2><span class="sw zl"></span>ZERO-L</h2><div class="pills" id="pillsZ"></div></div>
+      <canvas id="cvZ" role="img" aria-label="Street scene: a person holding a ZERO-L umbrella in the same storm"></canvas>
+      <dl class="nums" id="numsZ"></dl>
+    </div>
+  </section>
+
+  <section class="console" aria-label="Controls">
+    <div class="row" role="group" aria-label="Scenarios">
+      <span class="lbl">Scenario</span>
+      <button type="button" class="btn" data-preset="drizzle">Drizzle</button>
+      <button type="button" class="btn" data-preset="shower">City shower</button>
+      <button type="button" class="btn" data-preset="monsoon">Mumbai monsoon</button>
+      <button type="button" class="btn" data-preset="gale">Near gale</button>
+      <button type="button" class="btn" data-preset="storm">Storm</button>
+    </div>
+    <div class="ctls">
+      <div class="ctl">
+        <div class="top"><label for="wind">Mean wind</label><output id="windOut" for="wind"></output></div>
+        <input type="range" id="wind" min="0" max="30" step="0.5" value="10">
+        <div class="hint" id="windHint"></div>
+      </div>
+      <div class="ctl">
+        <div class="top"><label for="turb">Gustiness</label><output id="turbOut" for="turb"></output></div>
+        <input type="range" id="turb" min="0" max="0.4" step="0.01" value="0.28">
+        <div class="hint" id="turbHint"></div>
+      </div>
+      <div class="ctl">
+        <div class="top"><label for="rain">Rain</label><output id="rainOut" for="rain"></output></div>
+        <input type="range" id="rain" min="0" max="100" step="1" value="60">
+        <div class="hint" id="rainHint"></div>
+      </div>
+      <div class="ctl">
+        <div class="top"><label for="tilt">Hold</label><output id="tiltOut" for="tilt"></output></div>
+        <input type="range" id="tilt" min="-20" max="30" step="1" value="0">
+        <div class="hint">Right: tip the windward edge down, into the wind</div>
+      </div>
+      <div class="ctl">
+        <span class="name" id="gripLbl">Grip</span>
+        <div class="seg" role="group" aria-labelledby="gripLbl"><button type="button" data-grip="one">One hand</button><button type="button" data-grip="two">Two hands</button></div>
+        <div class="hint" id="gripHint"></div>
+      </div>
+      <div class="ctl">
+        <span class="name" id="valveLbl">ZERO-L valves</span>
+        <div class="seg" role="group" aria-labelledby="valveLbl"><button type="button" data-valves="one">One-way (built)</button><button type="button" data-valves="two">Two-way (phase 2)</button></div>
+        <div class="hint" id="valveHint"></div>
+      </div>
+      <div class="ctl">
+        <span class="name" id="speedLbl">Speed</span>
+        <div class="seg" role="group" aria-labelledby="speedLbl"><button type="button" data-speed="0.25">¼×</button><button type="button" data-speed="0.5">½×</button><button type="button" data-speed="1">1×</button></div>
+        <div class="hint">Slow motion shows the valves and inversions</div>
+      </div>
+      <div class="ctl">
+        <span class="name">Show</span>
+        <div class="row">
+          <label class="tog"><input type="checkbox" id="walk">Walk into the wind</label>
+          <label class="tog"><input type="checkbox" id="arrows" checked>Force arrows</label>
+          <label class="tog"><input type="checkbox" id="flow" checked>Airflow</label>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="lbl">Send</span>
+      <button type="button" class="btn" id="gUp">Gust from below</button>
+      <button type="button" class="btn" id="gDown">Gust from above</button>
+      <button type="button" class="btn" id="gSquall">Squall</button>
+      <span class="lbl" style="margin-left:10px">Run</span>
+      <button type="button" class="btn primary" id="play">Pause</button>
+      <button type="button" class="btn" id="flip" disabled>Flip it back</button>
+      <button type="button" class="btn" id="reset">Reset</button>
+    </div>
+  </section>
+
+  <section class="tele" aria-label="Telemetry">
+    <div class="chart" id="chUp">
+      <h3>Uplift on the canopy</h3>
+      <div class="legend"><span><i style="border-color:var(--conv)"></i>Normal</span><span><i style="border-color:var(--zl)"></i>ZERO-L</span><span><i style="border-color:var(--ink-3);border-top-style:dashed"></i>inverts a normal umbrella</span></div>
+      <canvas aria-label="Strip chart of uplift in newtons over the last 12 seconds"></canvas>
+      <div class="tip" hidden></div>
+    </div>
+    <div class="chart" id="chTilt">
+      <h3>Tilt, + windward edge up</h3>
+      <div class="legend"><span><i style="border-color:var(--conv)"></i>Normal</span><span><i style="border-color:var(--zl)"></i>ZERO-L</span></div>
+      <canvas aria-label="Strip chart of umbrella tilt in degrees over the last 12 seconds"></canvas>
+      <div class="tip" hidden></div>
+    </div>
+    <div class="chart" id="chWind">
+      <h3>Wind at the umbrellas</h3>
+      <div class="legend"><span><i style="border-color:var(--ink)"></i>along the street</span><span><i style="border-color:var(--ink-3);border-top-style:dashed"></i>vertical gust</span></div>
+      <canvas aria-label="Strip chart of horizontal and vertical wind speed over the last 12 seconds"></canvas>
+      <div class="tip" hidden></div>
+    </div>
+  </section>
+
+  <section class="lower">
+    <div class="card">
+      <h3>Events</h3>
+      <ol class="log" id="log"><li class="empty">Nothing yet. Events appear here as the storm plays out.</li></ol>
+    </div>
+    <div class="card notes">
+      <h3>What the simulation found</h3>
+      <div class="finding">
+        <p style="margin:0">The design note's static model missed one thing. A flat canopy's gust lift acts about a quarter of its diameter upwind of the shaft, so every gust also twists the umbrella in your hand. With one-way valves, downward gusts are not relieved, and in strong gusty wind they can tip ZERO-L into the wind faster than a hand reacts. Two-way valves fix most of this.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Gusty city air, 25%</th><th>Normal</th><th>ZERO-L one-way</th><th>ZERO-L two-way</th></tr></thead>
+          <tbody>
+            <tr><td>8 m/s</td><td>inside out</td><td>holds</td><td>holds</td></tr>
+            <tr><td>11 m/s</td><td>inside out</td><td>holds, one hand</td><td>holds, one hand</td></tr>
+            <tr><td>15 m/s</td><td>torn away</td><td>needs two hands</td><td>holds, one hand</td></tr>
+            <tr><td>20 m/s</td><td>torn away</td><td>torn away</td><td>holds, two hands</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <h3>What is simulated</h3>
+      <ul>
+        <li><b>Wind.</b> Mean wind plus turbulence as two random processes (along-street gusts with a 60 m length scale, vertical gusts with 4 m), carried down the street at the mean speed, so you can watch a gust travel through the rain before it reaches the umbrellas. Vertical gust intensity is 45% of the along-street value.</li>
+        <li><b>Aerodynamics.</b> The same model as the design note, driven by the air speed relative to the moving canopy. Gust lift acts 0.25 m upwind of the centre and builds up over 1.5 canopy lengths of travel. ZERO-L's valves open in 40 ms and close in 80 ms.</li>
+        <li><b>The person.</b> The arm is a 900 N/m spring. The hand resists tilt with muscle stiffness, plus a slower deliberate correction after a 150 ms reaction delay, up to 26 N·m with one hand or 50 N·m with two. A normal umbrella inverts at 60 N of uplift; either umbrella is lost above 170 N (one hand) or 280 N (two).</li>
+        <li><b>Rain.</b> Drop sizes follow the Marshall–Palmer distribution and fall at their terminal speed; each drop takes about v<sub>t</sub>/g to catch up with a gust. Each drop carries water in proportion to its diameter cubed, so the large, steeper-falling drops carry most of it. Water reaching the head and shoulders is counted through a slab 0.45 m deep.</li>
+        <li><b>Not simulated:</b> 3D flow, fabric flutter (drawn, not computed), the body sheltering the air under the canopy, and dynamic stall. Treat the numbers as first-order.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const rng = mulberry32(20261003);
+let spareN = null;
+function randn() {
+  if (spareN !== null) { const s = spareN; spareN = null; return s; }
+  let u = 0; while (u === 0) u = rng();
+  const v = rng(), r = Math.sqrt(-2 * Math.log(u));
+  spareN = r * Math.sin(2 * Math.PI * v); return r * Math.cos(2 * Math.PI * v);
+}
+
+// ===================== physics (model shared with the design note) =====================
+const RHO = 1.225, G = 9.81, DIA = 1.05, RAD = DIA / 2, S0 = Math.PI * DIA * DIA / 4, AR = 4 / Math.PI;
+const CLA = 2 * Math.PI * AR / (2 + Math.sqrt(AR * AR + 4)), DEG = Math.PI / 180;
+const CONV = { aL0: -2 * 0.18, cdcConcave: 1.35, cdcConvex: 0.8, cd0: 0.12, cnMax: 1.45 };
+const ZL = { cdc: 1.0, cd0: 0.05, cnMax: 1.3, crackPa: 15, relief: 0.7 };
+const XAC = 0.25, INVERT_N = 60, HZ = 240, DT = 1 / HZ, WALK = 1.4;
+const PARAM = {
+  conv: { m: 0.45, lg: 0.44, I: 0.43, Icg: 0.042, lc: 0.62 },
+  zl: { m: 0.60, lg: 0.46, I: 0.48, Icg: 0.053, lc: 0.62 },
+};
+const GRIP = {
+  one: { k0: 70, c0: 5, kp: 25, kd: 1, ki: 35, tmax: 26, gripN: 170 },
+  two: { k0: 140, c0: 9, kp: 45, kd: 2, ki: 60, tmax: 50, gripN: 280 },
+};
+const DELAY_N = Math.round(0.15 * HZ), ARM_K = 900, ARM_M = 2.0, H0 = [-0.24, 1.30], LIM = 80 * DEG;
+const st = { U: 10, I: 0.28, R: 60, tilt: 0, grip: 'one', valves: 'one', walk: false, arrows: true, flow: true, speed: 1, paused: false, t: 0, walkOff: 0, legPh: 0 };
+const walkV = () => st.walk ? WALK : 0;
+
+// wind: generated at the upwind edge of the street and carried downwind at the mean speed
+const W = { up: 0, wp: 0, gusts: [], bu: new Float32Array(4096), bw: new Float32Array(4096), head: 0, X_IN: -6 };
+function windGen(dt) {
+  const U = st.U, su = st.I * U, sw = 0.45 * st.I * U;
+  const Tu = clamp(60 / Math.max(U, 1), 1, 8), Tw = clamp(4 / Math.max(U, 1), 0.15, 1.2);
+  W.up += -W.up / Tu * dt + su * Math.sqrt(2 * dt / Tu) * randn();
+  W.wp += -W.wp / Tw * dt + sw * Math.sqrt(2 * dt / Tw) * randn();
+  let gu = 0, gw = 0;
+  W.gusts = W.gusts.filter(g => st.t < g.t0 + g.dur);
+  for (const g of W.gusts) if (st.t >= g.t0) { const k = 0.5 * (1 - Math.cos(2 * Math.PI * (st.t - g.t0) / g.dur)); gu += g.du * k; gw += g.dw * k; }
+  W.head = (W.head + 1) % 4096;
+  W.bu[W.head] = Math.max(0, U + W.up + gu); W.bw[W.head] = W.wp + gw;
+}
+function windAt(x) {
+  const back = clamp((x - W.X_IN) / Math.max(st.U, 0.5), 0, 16.5) * HZ;
+  const i0 = Math.floor(back), f = back - i0;
+  const a = (W.head - i0 + 8192) % 4096, b = (a + 4095) % 4096;
+  return [W.bu[a] * (1 - f) + W.bu[b] * f, W.bw[a] * (1 - f) + W.bw[b] * f];
+}
+function fillWind() { for (let i = 0; i < 4096; i++) windGen(DT); }
+
+function cn(ae, cdc, cnMax) { const s = Math.sin(ae), c = Math.cos(ae); return clamp(CLA * s * c + cdc * s * Math.abs(s), -cnMax, cnMax); }
+function aero(u, V, a) {
+  const q = 0.5 * RHO * V * V;
+  if (u.kind === 'conv') {
+    const inv = u.inverted, qS = q * S0 * (inv ? 0.65 : 1);
+    const ae = a - (inv ? -CONV.aL0 : CONV.aL0), concave = inv ? ae < 0 : ae > 0;
+    const N = cn(ae, concave ? CONV.cdcConcave : CONV.cdcConvex, CONV.cnMax) * qS;
+    return { L: N * Math.cos(ae), D: (inv ? 0.3 : CONV.cd0) * qS + N * Math.sin(ae), Na: CLA * Math.sin(a) * Math.cos(a) * qS };
+  }
+  const qS = q * S0, raw = cn(a, ZL.cdc, ZL.cnMax) * qS, Nc = ZL.crackPa * S0;
+  const over = raw > Nc || (st.valves === 'two' && raw < -Nc);
+  const N = over ? raw - u.relief * (raw - Math.sign(raw) * Nc) : raw, k = Math.abs(raw) > 1e-9 ? N / raw : 1;
+  return { L: N * Math.cos(a), D: ZL.cd0 * qS + N * Math.sin(a), Na: CLA * Math.sin(a) * Math.cos(a) * qS * k, raw, over };
+}
+// air velocity relative to the canopy (vrx, vrz) and canopy normal (s, c) -> world force and moment
+function forces(u, vrx, vrz, s, c) {
+  const V = Math.hypot(vrx, vrz), vn = vrx * s + vrz * c, vt = vrx * c - vrz * s;
+  const sg = vt >= 0 ? 1 : -1, a = Math.atan2(vn, Math.abs(vt)), r = aero(u, V, a);
+  const hx = V > 1e-6 ? vrx / V : 1, hz = V > 1e-6 ? vrz / V : 0;
+  let lx = -hz, lz = hx; if (lx * s + lz * c < 0) { lx = -lx; lz = -lz; }
+  let Fx = r.D * hx + r.L * lx, Fz = r.D * hz + r.L * lz, Mc = sg * XAC * r.Na;
+  if (u.inverted) { const k = 1 + 0.22 * Math.sin(st.t * 19 + 1.3 * Math.sin(st.t * 7)); Fx *= k; Fz *= k; Mc *= k; }
+  return { Fx, Fz, Mc, a: sg * a, r };
+}
+function newUmb(kind) {
+  return { kind, P: PARAM[kind], th: -st.tilt * DEG, om: 0, hx: 0, hz: 0, vx: 0, vz: 0, integ: 0, relief: 0, dp: 0, ventDir: 1,
+    inverted: false, invT: 0, inv: 0, tearT: 0, overT: 0, free: null, eb: new Float32Array(64), ob: new Float32Array(64), bi: 0,
+    F: [0, 0], Fh: 0, a: 0, sat: false, wf: 0, venting: false, ventPeak: 0, ventStart: 0, lastVentLog: -99 };
+}
+function release(u, msg) {
+  const P = u.P, s = Math.sin(u.th), c = Math.cos(u.th), Hx = H0[0] + u.hx, Hz = H0[1] + u.hz;
+  u.free = { x: Hx + P.lg * s, z: Hz + P.lg * c, vx: u.vx + P.lg * u.om * c, vz: u.vz - P.lg * u.om * s, t: 0, goneAt: 0 };
+  u.hx = u.hz = u.vx = u.vz = 0;
+  logEvent(u.kind, msg);
+}
+function stepFree(u, dt) {
+  const P = u.P, fr = u.free, s = Math.sin(u.th), c = Math.cos(u.th), d = P.lc - P.lg;
+  fr.t += dt;
+  const Cx = fr.x + d * s, vCx = fr.vx + d * u.om * c, vCz = fr.vz - d * u.om * s;
+  const [wu, ww] = windAt(Cx), f = forces(u, wu + walkV() - vCx, ww - vCz, s, c);
+  u.F = [f.Fx, f.Fz];
+  fr.vx += f.Fx / P.m * dt; fr.vz += (f.Fz / P.m - G) * dt;
+  u.om += (-(d * s * f.Fz - d * c * f.Fx) + f.Mc) / P.Icg * dt; u.om *= Math.exp(-0.8 * dt); u.th += u.om * dt;
+  fr.x += fr.vx * dt; fr.z += fr.vz * dt;
+  if (fr.z < 0.3) { fr.z = 0.3; if (fr.vz < 0) fr.vz *= -0.25; fr.vx += (walkV() - fr.vx) * Math.min(1, 4 * dt); u.om *= 0.9; }
+}
+function stepUmb(u, dt) {
+  // inversion shape: snaps through in 0.14 s, recovers in 0.3 s when flipped back
+  u.inv = u.inverted ? Math.min(1, u.inv + dt / 0.14) : Math.max(0, u.inv - dt / 0.3);
+  if (u.free) return stepFree(u, dt);
+  const P = u.P, gp = GRIP[st.grip], s = Math.sin(u.th), c = Math.cos(u.th);
+  const Cx = H0[0] + u.hx + P.lc * s;
+  const vCx = u.vx + P.lc * u.om * c, vCz = u.vz - P.lc * u.om * s;
+  const [wu, ww] = windAt(Cx);
+  // gust admittance: lift builds over ~1.5 canopy lengths of travel (Kussner-like lag plus spatial averaging)
+  u.wf += (ww - u.wf) * (1 - Math.exp(-dt * Math.max(st.U, 2) / (1.5 * DIA)));
+  const f = forces(u, wu + walkV() - vCx, u.wf - vCz, s, c);
+  u.F = [f.Fx, f.Fz]; u.a = f.a;
+  if (u.kind === 'zl') {
+    const tgt = f.r.over ? ZL.relief : 0, tau = tgt > u.relief ? 0.04 : 0.08;
+    u.relief += (tgt - u.relief) * (1 - Math.exp(-dt / tau)); u.dp = f.r.raw / S0;
+    if (f.r.over) u.ventDir = Math.sign(f.r.raw);
+    if (!u.venting && u.relief > 0.2) { u.venting = true; u.ventPeak = 0; u.ventStart = st.t; }
+    if (u.venting) {
+      u.ventPeak = Math.max(u.ventPeak, Math.abs(u.dp));
+      if (u.relief < 0.05) {
+        u.venting = false;
+        if (st.t - u.lastVentLog > 6) { u.lastVentLog = st.t; logEvent('zl', `Valves vented a gust ${u.ventDir > 0 ? 'from below' : 'from above'} (peak ${Math.round(u.ventPeak)} Pa) and closed after ${(st.t - u.ventStart).toFixed(2)} s`); }
+      }
+    }
+  }
+  const rx = P.lc * s, rz = P.lc * c;
+  const tauA = -(rx * f.Fz - rz * f.Fx) + f.Mc, tauG = P.m * G * P.lg * s;
+  const e = u.th + st.tilt * DEG;
+  u.eb[u.bi] = e; u.ob[u.bi] = u.om;
+  const di = (u.bi - DELAY_N + 64) % 64; u.bi = (u.bi + 1) % 64;
+  const ed = u.eb[di], od = u.ob[di];
+  u.integ = clamp(u.integ + ed * dt, -0.6, 0.6);
+  let tauH = -(gp.k0 * e + gp.c0 * u.om) - (gp.kp * ed + gp.kd * od + gp.ki * u.integ);
+  u.sat = Math.abs(tauH) >= gp.tmax; tauH = clamp(tauH, -gp.tmax, gp.tmax);
+  let tauS = 0;
+  if (u.th > LIM) tauS = -300 * (u.th - LIM) - 8 * u.om; else if (u.th < -LIM) tauS = -300 * (u.th + LIM) - 8 * u.om;
+  u.om += (tauA + tauG + tauH + tauS) / P.I * dt; u.th += u.om * dt;
+  const m = ARM_M + P.m, cA = 2 * 0.75 * Math.sqrt(ARM_K * m);
+  const fax = -ARM_K * u.hx - cA * u.vx, faz = -ARM_K * u.hz - cA * u.vz;
+  u.vx += (f.Fx + fax) / m * dt; u.vz += (f.Fz + faz) / m * dt; u.hx += u.vx * dt; u.hz += u.vz * dt;
+  let atReach = false;
+  if (Math.abs(u.hx) > 0.3) { u.hx = Math.sign(u.hx) * 0.3; u.vx = 0; atReach = true; }
+  if (Math.abs(u.hz) > 0.3) { u.hz = Math.sign(u.hz) * 0.3; u.vz = 0; atReach = true; }
+  u.Fh = atReach ? Math.hypot(f.Fx, f.Fz) : Math.hypot(fax, faz);
+  if (u.kind === 'conv' && !u.inverted) {
+    const Nn = f.Fx * s + f.Fz * c;
+    if (Nn > INVERT_N) {
+      u.invT += dt;
+      if (u.invT > 0.03) { u.inverted = true; logEvent('conv', `Turned inside out: ${Math.round(Nn)} N pushing up under the canopy`); }
+    } else u.invT = Math.max(0, u.invT - dt);
+  }
+  u.tearT = u.Fh > gp.gripN ? u.tearT + dt : Math.max(0, u.tearT - dt * 0.5);
+  u.overT = Math.abs(u.th) >= LIM - 0.02 && u.sat ? u.overT + dt : Math.max(0, u.overT - dt);
+  if (u.tearT > 0.25) release(u, `Torn out of the hand at ${Math.round(u.Fh)} N`);
+  else if (u.overT > 1.2) release(u, 'Blown over and out of the hand');
+}
+
+// ===================== rain =====================
+const DOM_X0 = -6, DOM_W = 12, YTOP = 3.3, MAXP = 5000, DEPTH = 0.45, VIEW_W = 4.6, VIEW_Y0 = -0.12;
+const vterm = D => Math.max(0.6, 9.65 - 10.3 * Math.exp(-0.6 * D));
+function dropSize(r) { const lam = 4.1 * Math.pow(Math.max(st.R, 0.5), -0.21); return clamp(-Math.log(1 - r()) / lam, 0.3, 5.5); }
+function makeRain(seed) {
+  const F = () => new Float32Array(MAXP);
+  return { r: mulberry32(seed), n: 0, x: F(), y: F(), ud: F(), wd: F(), vt: F(), dm: F(), k: 0 };
+}
+function spawnDrop(rain, i, top) {
+  const r = rain.r;
+  rain.x[i] = DOM_X0 + r() * DOM_W; rain.y[i] = top ? YTOP + r() * 0.2 : r() * YTOP;
+  const D = dropSize(r); rain.dm[i] = D; rain.vt[i] = vterm(D);
+  rain.ud[i] = windAt(rain.x[i])[0]; rain.wd[i] = 0;
+}
+function setRainRate(rain) {
+  const rho = st.R <= 0 ? 0 : clamp(3 + 1.5 * st.R, 3, 120);
+  const n = Math.min(MAXP, Math.round(rho * DOM_W * YTOP));
+  for (let i = rain.n; i < n; i++) spawnDrop(rain, i, false);
+  rain.n = n;
+  // each drop carries water in proportion to D^3; scale so the field delivers R mm/h through a slab DEPTH deep
+  let m3 = 0; const r = mulberry32(99);
+  for (let k = 0; k < 2000; k++) { const D = dropSize(r); m3 += D * D * D * vterm(D); }
+  rain.k = n ? (st.R / 3.6e6) * DEPTH / (rho * m3 / 2000) : 0;
+}
+function segT(ax, ay, bx, by, cx, cy, dx, dy) {
+  const rx = bx - ax, ry = by - ay, sx = dx - cx, sy = dy - cy, den = rx * sy - ry * sx;
+  if (Math.abs(den) < 1e-12) return -1;
+  const qx = cx - ax, qy = cy - ay, t = (qx * sy - qy * sx) / den, v = (qx * ry - qy * rx) / den;
+  return t >= 0 && t <= 1 && v >= 0 && v <= 1 ? t : -1;
+}
+function circT(ax, ay, bx, by, cx, cy, r) {
+  const dx = bx - ax, dy = by - ay, fx = ax - cx, fy = ay - cy;
+  const a = dx * dx + dy * dy, b = 2 * (fx * dx + fy * dy), c = fx * fx + fy * fy - r * r;
+  if (c <= 0) return 0;
+  const disc = b * b - 4 * a * c; if (disc < 0 || a < 1e-12) return -1;
+  const t = (-b - Math.sqrt(disc)) / (2 * a);
+  return t >= 0 && t <= 1 ? t : -1;
+}
+function rectT(ax, ay, bx, by, x0, x1, y0, y1) {
+  let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay;
+  for (const [p, q] of [[-dx, ax - x0], [dx, x1 - ax], [-dy, ay - y0], [dy, y1 - ay]]) {
+    if (Math.abs(p) < 1e-12) { if (q < 0) return -1; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return -1; if (r > t0) t0 = r; } else { if (r < t0) return -1; if (r < t1) t1 = r; }
+  }
+  return t0;
+}
+const HEAD = [-0.02, 1.625, 0.105], TORSO = [-0.17, 0.15, 0.90, 1.51], LEGS = [-0.13, 0.11, 0, 0.90];
+function collide(p, ax, ay, bx, by) {
+  let best = 2, what = -1;
+  const mnx = Math.min(ax, bx), mxx = Math.max(ax, bx), mny = Math.min(ay, by), mxy = Math.max(ay, by);
+  const g = p.geo, bb = g.bb;
+  if (mxx >= bb[0] && mnx <= bb[1] && mxy >= bb[2] && mny <= bb[3]) {
+    const sg = g.seg;
+    for (let k = 0; k < sg.length; k += 4) { const t = segT(ax, ay, bx, by, sg[k], sg[k + 1], sg[k + 2], sg[k + 3]); if (t >= 0 && t < best) { best = t; what = 0; } }
+  }
+  if (mxx >= -0.2 && mnx <= 0.16 && mny <= 1.74) {
+    let t = circT(ax, ay, bx, by, HEAD[0], HEAD[1], HEAD[2]); if (t >= 0 && t < best) { best = t; what = 1; }
+    t = rectT(ax, ay, bx, by, TORSO[0], TORSO[1], TORSO[2], TORSO[3]); if (t >= 0 && t < best) { best = t; what = 2; }
+    t = rectT(ax, ay, bx, by, LEGS[0], LEGS[1], LEGS[2], LEGS[3]); if (t >= 0 && t < best) { best = t; what = 3; }
+  }
+  if (what < 0) return null;
+  const hx = ax + (bx - ax) * best, hy = ay + (by - ay) * best;
+  if (what === 2 && hy > 1.25) what = 1;
+  return { what, x: hx, y: hy };
+}
+function addSplash(p, x, y, ud, n) {
+  for (let k = 0; k < n && p.splash.length < 360; k++) {
+    const r = p.rain.r;
+    p.splash.push({ x, y: y + 0.01, vx: (r() - 0.5) * 1.6 + ud * 0.08, vy: 0.5 + r() * 1.1, life: 0.22 + r() * 0.15 });
+  }
+}
+function rainStep(p, dt) {
+  const rain = p.rain, walk = walkV();
+  let hs = 0, body = 0;
+  for (let i = 0; i < rain.n; i++) {
+    const x0 = rain.x[i], y0 = rain.y[i], vt = rain.vt[i];
+    const w = windAt(x0), k = Math.min(1, dt * G / vt);
+    rain.ud[i] += (w[0] - rain.ud[i]) * k; rain.wd[i] += (w[1] - rain.wd[i]) * k;
+    const x1 = x0 + (rain.ud[i] + walk) * dt, y1 = y0 + (rain.wd[i] - vt) * dt;
+    const hit = collide(p, x0, y0, x1, y1);
+    if (hit) {
+      const D = rain.dm[i], vol = rain.k * D * D * D;
+      if (hit.what === 1) hs += vol; else if (hit.what >= 2) body += vol;
+      if (Math.abs(hit.x) < 2.4 && rain.r() < 0.45) addSplash(p, hit.x, hit.y, rain.ud[i], 1);
+      spawnDrop(rain, i, true); continue;
+    }
+    if (y1 <= 0) { if (Math.abs(x1) < 2.4 && rain.r() < 0.3) addSplash(p, x1, 0, rain.ud[i], 2); spawnDrop(rain, i, true); continue; }
+    rain.x[i] = x1 > DOM_X0 + DOM_W ? x1 - DOM_W : x1 < DOM_X0 ? x1 + DOM_W : x1; rain.y[i] = y1;
+  }
+  const a = 1 - Math.exp(-dt / 4);
+  p.rateHS += (hs / dt * 6e7 - p.rateHS) * a; p.rateBody += (body / dt * 6e7 - p.rateBody) * a;
+  p.totHS += hs * 1e6;
+}
+function stepSplash(p, dt) {
+  for (const s of p.splash) { s.vy -= G * dt; s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; }
+  p.splash = p.splash.filter(s => s.life > 0 && s.y > -0.05);
+}
+function stepTracers(p, dt) {
+  for (const tr of p.tracers) {
+    const w = windAt(tr.x); tr.vx = w[0] + walkV(); tr.vy = w[1];
+    tr.x += tr.vx * dt; tr.y += tr.vy * dt;
+    if (tr.x > 2.6 || tr.y < 0.05 || tr.y > 2.9) { tr.x = -2.6 + p.rain.r() * 0.3; tr.y = 0.1 + p.rain.r() * 2.6; }
+  }
+}
+
+// ===================== world setup =====================
+function canopyGeom(u) {
+  const P = u.P, s = Math.sin(u.th), c = Math.cos(u.th);
+  let Hx, Hz;
+  if (u.free) { Hx = u.free.x - P.lg * s; Hz = u.free.z - P.lg * c; } else { Hx = H0[0] + u.hx; Hz = H0[1] + u.hz; }
+  const n = [s, c], t = [c, -s], Cx = Hx + P.lc * s, Cz = Hz + P.lc * c;
+  const Wp = (lx, ly) => [Cx + lx * t[0] + ly * n[0], Cz + lx * t[1] + ly * n[1]];
+  let loc, hub;
+  if (u.kind === 'conv') {
+    const f = 1 - 1.8 * u.inv; loc = [];
+    for (let i = 0; i <= 16; i++) {
+      const lx = -RAD + 2 * RAD * i / 16, e = 1 - (lx / RAD) ** 2;
+      let ly = 0.19 * e * f;
+      if (u.inv > 0.3) ly += 0.035 * u.inv * e * Math.sin(9 * lx + st.t * 17);
+      loc.push([lx, ly]);
+    }
+    hub = 0.19 * f;
+  } else {
+    const h = RAD * Math.tan(10 * DEG);
+    loc = [[-RAD, 0], [0, h], [RAD, 0], [0, -h], [-RAD, 0]]; hub = h;
+  }
+  const pts = loc.map(([a, b]) => Wp(a, b));
+  const seg = [], bb = [1e9, -1e9, 1e9, -1e9];
+  for (let i = 0; i < pts.length - 1; i++) seg.push(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]);
+  for (const [x, y] of pts) { bb[0] = Math.min(bb[0], x); bb[1] = Math.max(bb[1], x); bb[2] = Math.min(bb[2], y); bb[3] = Math.max(bb[3], y); }
+  return { Hx, Hz, Cx, Cz, n, t, Wp, loc, pts, seg, bb, hub };
+}
+function makePanel(kind, cvSel, seed) {
+  const p = { kind, u: newUmb(kind), rain: makeRain(seed), splash: [], tracers: [], rateHS: 0, rateBody: 0, totHS: 0, cv: $(cvSel), geo: null, respawnAt: 0 };
+  p.ctx = p.cv.getContext('2d');
+  const r = mulberry32(seed + 5);
+  for (let i = 0; i < 46; i++) p.tracers.push({ x: -2.6 + r() * 5.2, y: 0.1 + r() * 2.6, vx: 0, vy: 0 });
+  return p;
+}
+const panels = [makePanel('conv', '#cvC', 77), makePanel('zl', '#cvZ', 77)];
+
+// ===================== events =====================
+const EVENTS = [];
+function logEvent(kind, msg) {
+  EVENTS.unshift({ t: st.t, kind, msg });
+  if (EVENTS.length > 14) EVENTS.pop();
+  $('#log').innerHTML = EVENTS.map(e => `<li><span class="tm">${e.t.toFixed(1)} s</span><span class="sw ${e.kind === 'conv' ? 'conv' : e.kind === 'zl' ? 'zl' : ''}" style="${e.kind === 'all' ? 'background:var(--ink-3)' : ''}"></span><span>${e.msg}</span></li>`).join('');
+}
+
+// ===================== physics loop =====================
+function physStep() {
+  windGen(DT); st.t += DT;
+  for (const p of panels) {
+    stepUmb(p.u, DT);
+    const fr = p.u.free;
+    if (fr) {
+      if (!fr.goneAt && (Math.abs(fr.x) > 3.2 || fr.t > 5)) fr.goneAt = fr.t;
+      if (fr.goneAt && fr.t - fr.goneAt > 1.2) { p.u = newUmb(p.kind); logEvent(p.kind, 'Opened a spare umbrella'); }
+    }
+  }
+}
+
+// ===================== drawing =====================
+const SKY = []; { const r = mulberry32(11); let x = -8; while (x < 8) { const w = 0.45 + r() * 1.0, h = 0.5 + r() * 1.7; SKY.push({ x, w, h, s: Math.floor(r() * 1e6) }); x += w + r() * 0.12; } }
+function fit(cv) {
+  const r = cv.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  return { w, h, dpr };
+}
+const mod = (a, n) => ((a % n) + n) % n;
+function mix(a, b, t) {
+  const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+  return `rgb(${pa.map((v, i) => Math.round(v + (pb[i] - v) * t)).join(',')})`;
+}
+function drawScene(p) {
+  const ctx = p.ctx, { w, h, dpr } = fit(p.cv), sc = w / VIEW_W;
+  const X = x => w / 2 + x * sc, Y = y => h - (y - VIEW_Y0) * sc;
+  // sky
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, '#09131A'); g.addColorStop(0.75, '#142530'); g.addColorStop(1, '#1A2E38');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // distant skyline
+  const off = st.walkOff * 0.18;
+  for (const b of SKY) {
+    const bx = mod(b.x - off + 8, 16) - 8;
+    if (bx > 2.4 || bx + b.w < -2.4) continue;
+    ctx.fillStyle = '#0E1B22'; ctx.fillRect(X(bx), Y(b.h), b.w * sc, b.h * sc);
+    const r = mulberry32(b.s);
+    ctx.fillStyle = 'rgba(240,190,110,0.16)';
+    for (let wy = 0.18; wy < b.h - 0.12; wy += 0.22) for (let wx = 0.08; wx < b.w - 0.1; wx += 0.17) if (r() < 0.32) ctx.fillRect(X(bx + wx), Y(wy + 0.08), 0.07 * sc, 0.09 * sc);
+  }
+  // street light with glow
+  const lx = mod(1.5 - st.walkOff, 7) - 3.5, lampX = lx - 0.38, lampY = 2.62;
+  ctx.strokeStyle = '#2A3940'; ctx.lineWidth = 0.06 * sc;
+  ctx.beginPath(); ctx.moveTo(X(lx), Y(0)); ctx.lineTo(X(lx), Y(2.68)); ctx.lineTo(X(lampX), Y(2.68)); ctx.stroke();
+  const gl = ctx.createRadialGradient(X(lampX), Y(lampY), 0, X(lampX), Y(lampY), 2.0 * sc);
+  gl.addColorStop(0, 'rgba(255,205,130,0.30)'); gl.addColorStop(0.35, 'rgba(255,190,110,0.09)'); gl.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = gl; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#FFE2B0'; ctx.beginPath(); ctx.ellipse(X(lampX), Y(lampY), 0.09 * sc, 0.035 * sc, 0, 0, 7); ctx.fill();
+  // ground
+  ctx.fillStyle = '#0C161A'; ctx.fillRect(0, Y(0), w, h - Y(0));
+  ctx.fillStyle = 'rgba(255,190,110,0.07)'; ctx.fillRect(X(lampX - 0.5), Y(0), sc, h - Y(0));
+  ctx.strokeStyle = '#23353C'; ctx.lineWidth = 1.5 * dpr; ctx.beginPath(); ctx.moveTo(0, Y(0)); ctx.lineTo(w, Y(0)); ctx.stroke();
+  ctx.strokeStyle = '#17252B'; ctx.lineWidth = 1 * dpr; ctx.beginPath();
+  for (let k = -4; k < 5; k++) { const jx = mod(k * 0.8 - st.walkOff, 8) - 4; ctx.moveTo(X(jx), Y(0)); ctx.lineTo(X(jx - 0.05), h); }
+  ctx.stroke();
+  // airflow tracers
+  if (st.flow) {
+    ctx.lineCap = 'round'; ctx.lineWidth = 1.2 * dpr;
+    for (const tr of p.tracers) {
+      const sp = Math.hypot(tr.vx, tr.vy), a = clamp(0.05 + 0.13 * sp / Math.max(st.U, 3), 0.04, 0.24);
+      ctx.strokeStyle = `rgba(215,235,242,${a.toFixed(3)})`;
+      ctx.beginPath(); ctx.moveTo(X(tr.x), Y(tr.y)); ctx.lineTo(X(tr.x - tr.vx * 0.09), Y(tr.y - tr.vy * 0.09)); ctx.stroke();
+    }
+  }
+  // rain
+  const rain = p.rain, walk = walkV(), k = 0.026;
+  const paths = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
+  for (let i = 0; i < rain.n; i++) {
+    const x = rain.x[i]; if (x < -2.45 || x > 2.45) continue;
+    const y = rain.y[i], vx = rain.ud[i] + walk, vy = rain.wd[i] - rain.vt[i];
+    const lit = Math.hypot(x - lampX, y - lampY) < 1.5 ? 1 : 0, big = rain.dm[i] > 1.6 ? 2 : 0;
+    const pth = paths[lit + big];
+    pth.moveTo(X(x), Y(y)); pth.lineTo(X(x - vx * k), Y(y - vy * k));
+  }
+  ctx.lineCap = 'round';
+  const rc = ['rgba(150,185,210,0.30)', 'rgba(255,225,180,0.55)', 'rgba(160,195,220,0.42)', 'rgba(255,228,185,0.7)'];
+  paths.forEach((pth, i) => { ctx.strokeStyle = rc[i]; ctx.lineWidth = (i >= 2 ? 1.5 : 0.9) * dpr; ctx.stroke(pth); });
+  // person
+  drawPerson(ctx, X, Y, sc, p);
+  // umbrella
+  if (!(p.u.free && p.u.free.goneAt)) drawUmbrella(ctx, X, Y, sc, dpr, p);
+  // splashes
+  ctx.fillStyle = 'rgba(195,220,238,0.75)';
+  for (const s of p.splash) { ctx.beginPath(); ctx.arc(X(s.x), Y(s.y), 1.1 * dpr, 0, 7); ctx.fill(); }
+  // wind readout
+  const wa = windAt(H0[0]);
+  ctx.font = `500 ${11 * dpr}px "IBM Plex Mono", Consolas, monospace`; ctx.fillStyle = 'rgba(226,235,236,0.75)'; ctx.textAlign = 'left';
+  ctx.fillText(`wind ${wa[0].toFixed(1)} m/s  gust ${wa[1] >= 0 ? '↑' : '↓'}${Math.abs(wa[1]).toFixed(1)}`, 10 * dpr, 18 * dpr);
+}
+function limb(ctx, X, Y, sc, pts, width, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = width * sc; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))); ctx.stroke();
+}
+function drawPerson(ctx, X, Y, sc, p) {
+  const wl = clamp(p.rateHS / 50, 0, 1), wb = clamp(p.rateBody / 300, 0, 1);
+  const coat = mix('#22323A', '#2E5566', wl), legs = mix('#182329', '#24434F', wb);
+  const sw = st.walk ? Math.sin(st.legPh) * 0.3 : 0, hip = [-0.01, 0.94];
+  for (const a of [sw, -sw]) limb(ctx, X, Y, sc, [hip, [hip[0] - 0.47 * Math.sin(a), hip[1] - 0.47 * Math.cos(a)], [hip[0] - 0.92 * Math.sin(a), 0.05]], 0.1, legs);
+  ctx.fillStyle = coat;
+  ctx.beginPath(); ctx.moveTo(X(-0.17), Y(0.88)); ctx.lineTo(X(0.15), Y(0.88)); ctx.lineTo(X(0.16), Y(1.30));
+  ctx.quadraticCurveTo(X(0.15), Y(1.5), X(0.03), Y(1.52)); ctx.lineTo(X(-0.08), Y(1.52)); ctx.quadraticCurveTo(X(-0.18), Y(1.49), X(-0.18), Y(1.30)); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(X(HEAD[0]), Y(HEAD[1]), HEAD[2] * sc, 0, 7); ctx.fill();
+  ctx.save(); ctx.beginPath(); ctx.arc(X(HEAD[0]), Y(HEAD[1]), HEAD[2] * sc, 0, 7); ctx.clip();
+  ctx.fillStyle = '#7A6252'; ctx.beginPath(); ctx.arc(X(-0.085), Y(1.615), 0.065 * sc, 0, 7); ctx.fill(); ctx.restore();
+  // arm reaching for the shaft (or relaxed if the umbrella is gone)
+  const u = p.u, hand = u.free ? [-0.12, 1.12] : [H0[0] + u.hx, H0[1] + u.hz];
+  const sh = [-0.05, 1.43], L1 = 0.29, L2 = 0.28, dx = hand[0] - sh[0], dy = hand[1] - sh[1];
+  const d = Math.min(Math.hypot(dx, dy), L1 + L2 - 1e-3), base = Math.atan2(dy, dx);
+  const bend = Math.acos(clamp((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d), -1, 1));
+  const e1 = [sh[0] + L1 * Math.cos(base - bend), sh[1] + L1 * Math.sin(base - bend)], e2 = [sh[0] + L1 * Math.cos(base + bend), sh[1] + L1 * Math.sin(base + bend)];
+  const elbow = e1[1] < e2[1] ? e1 : e2;
+  limb(ctx, X, Y, sc, [sh, elbow, hand], 0.075, mix('#2A3B43', '#33596A', wl));
+  ctx.fillStyle = '#7A6252'; ctx.beginPath(); ctx.arc(X(hand[0]), Y(hand[1]), 0.035 * sc, 0, 7); ctx.fill();
+}
+function arrowS(ctx, x1, y1, x2, y2, color, lw, head) {
+  const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy); if (L < 3) return;
+  const ux = dx / L, uy = dy / L, hh = Math.min(head, L * 0.6);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - ux * hh, y2 - uy * hh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - ux * hh - uy * hh * 0.55, y2 - uy * hh + ux * hh * 0.55); ctx.lineTo(x2 - ux * hh + uy * hh * 0.55, y2 - uy * hh - ux * hh * 0.55); ctx.closePath(); ctx.fill();
+}
+function haloText(ctx, s, x, y, dpr) {
+  ctx.lineWidth = 3.5 * dpr; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(7,13,16,0.9)'; ctx.strokeText(s, x, y);
+  ctx.fillStyle = '#E2EBEC'; ctx.fillText(s, x, y);
+}
+function drawUmbrella(ctx, X, Y, sc, dpr, p) {
+  const u = p.u, g = p.geo, n = g.n, isC = u.kind === 'conv';
+  const P = (lx, ly) => { const q = g.Wp(lx, ly); return [X(q[0]), Y(q[1])]; };
+  // shaft and grip
+  const bot = [g.Hx - 0.15 * n[0], g.Hz - 0.15 * n[1]], top = g.Wp(0, g.hub + 0.035);
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#B9C6CA'; ctx.lineWidth = 0.018 * sc;
+  ctx.beginPath(); ctx.moveTo(X(bot[0]), Y(bot[1])); ctx.lineTo(X(top[0]), Y(top[1])); ctx.stroke();
+  ctx.strokeStyle = '#141C20'; ctx.lineWidth = 0.04 * sc;
+  ctx.beginPath(); ctx.moveTo(X(bot[0]), Y(bot[1])); ctx.lineTo(X(g.Hx + 0.03 * n[0]), Y(g.Hz + 0.03 * n[1])); ctx.stroke();
+  if (isC) {
+    const f = 1 - 1.8 * u.inv, prof = lx => 0.19 * (1 - (lx / RAD) ** 2) * f;
+    // stretchers from the runner
+    ctx.strokeStyle = 'rgba(185,198,202,0.55)'; ctx.lineWidth = 1.2 * dpr;
+    for (const sx of [-0.27, 0.27]) { const a = P(0, -0.1), b = P(sx, prof(sx)); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    const pts = g.loc.map(([a, b]) => P(a, b));
+    const gr = ctx.createLinearGradient(pts[0][0], pts[8][1], pts[16][0], pts[0][1]);
+    gr.addColorStop(0, '#B5561C'); gr.addColorStop(1, '#6A2E0C');
+    ctx.fillStyle = gr; ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(40,16,4,0.55)'; ctx.lineWidth = 1 * dpr;
+    for (const cphi of [-0.707, 0, 0.707]) {
+      ctx.beginPath();
+      for (let k = 0; k <= 8; k++) { const r = RAD * k / 8, lx = r * cphi, ly = prof(r) + (g.loc[0][1] - prof(-RAD)); const q = P(lx, k === 8 && cphi === 0 ? 0 : ly); k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#E2A070'; ctx.lineWidth = 1.6 * dpr;
+    ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  } else {
+    const h = g.hub, A = P(-RAD, 0), B = P(0, h), Cc = P(RAD, 0), D = P(0, -h);
+    ctx.fillStyle = '#0B3D4B'; ctx.beginPath(); ctx.moveTo(Cc[0], Cc[1]); ctx.lineTo(D[0], D[1]); ctx.lineTo(A[0], A[1]); ctx.closePath(); ctx.fill();
+    const gr = ctx.createLinearGradient(A[0], B[1], Cc[0], Cc[1]); gr.addColorStop(0, '#2BB1D3'); gr.addColorStop(1, '#0F5568');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(6,30,38,0.6)'; ctx.lineWidth = 1 * dpr;
+    for (const cx of [-0.707, 0, 0.707]) { const q = P(cx * RAD, 0); ctx.beginPath(); ctx.moveTo(B[0], B[1]); ctx.lineTo(q[0], q[1]); ctx.stroke(); }
+    ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = 'rgba(126,214,236,0.55)'; ctx.lineWidth = 1.1 * dpr;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(D[0], D[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#D9F3FA'; ctx.lineWidth = 1.5 * dpr;
+    ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.lineTo(Cc[0], Cc[1]); ctx.lineTo(D[0], D[1]); ctx.closePath(); ctx.stroke();
+    // valve flaps: lift with the relief state; puffs while venting
+    const open = u.relief / ZL.relief, lift = 0.05 * open * u.ventDir;
+    ctx.strokeStyle = '#8FE3F5'; ctx.lineWidth = 2.2 * dpr;
+    for (const sgn of [-1, 1]) for (const f0 of [0.40, 0.56]) {
+      const x1 = sgn * f0 * RAD, x2 = sgn * (f0 + 0.12) * RAD, y1 = h * (1 - f0) + 0.006, y2 = h * (1 - f0 - 0.12) + 0.006 + lift;
+      const a = P(x1, y1), b = P(x2, y2); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      if (open > 0.15) {
+        ctx.strokeStyle = `rgba(225,245,250,${(0.5 * open).toFixed(2)})`; ctx.lineWidth = 1.2 * dpr;
+        const c2 = P(x2 + sgn * 0.05, y2 + 0.09 * u.ventDir); ctx.beginPath(); ctx.moveTo(b[0], b[1]); ctx.lineTo(c2[0], c2[1]); ctx.stroke();
+        ctx.strokeStyle = '#8FE3F5'; ctx.lineWidth = 2.2 * dpr;
+      }
+    }
+  }
+  const tp = P(0, g.hub + 0.035); ctx.fillStyle = '#E2EBEC'; ctx.beginPath(); ctx.arc(tp[0], tp[1], 2.4 * dpr, 0, 7); ctx.fill();
+  // force arrows (world components of the aerodynamic force on the canopy)
+  if (st.arrows && !u.free) {
+    const col = isC ? '#E58A44' : '#3DB8DC', kN = 0.0052, cap = 0.85;
+    const cx = X(g.Cx), cy = Y(g.Cz), fz = u.F[1], fx = u.F[0];
+    const lz = clamp(fz * kN, -cap, cap) * sc, lxx = clamp(fx * kN, -cap, cap) * sc;
+    ctx.font = `600 ${11 * dpr}px "IBM Plex Mono", Consolas, monospace`; ctx.textAlign = 'left';
+    if (Math.abs(fz) > 1) {
+      arrowS(ctx, cx, cy, cx, cy - lz, col, 3 * dpr, 10 * dpr);
+      ctx.textAlign = 'right';
+      haloText(ctx, `${fz > 0 ? '↑' : '↓'} ${Math.round(Math.abs(fz))} N`, cx - 8 * dpr, cy - lz + (fz > 0 ? 8 : 4) * dpr, dpr);
+    }
+    if (Math.abs(fx) > 1) {
+      arrowS(ctx, cx, cy, cx + lxx, cy, col, 3 * dpr, 10 * dpr);
+      ctx.textAlign = 'left';
+      haloText(ctx, `→ ${Math.round(Math.abs(fx))} N`, cx + Math.max(lxx, 12 * dpr) + 4 * dpr, cy + 4 * dpr, dpr);
+    }
+  }
+  if (isC && u.inverted) {
+    ctx.font = `700 ${12 * dpr}px "Archivo", "Arial Narrow", sans-serif`; ctx.fillStyle = '#F0705F'; ctx.textAlign = 'center';
+    ctx.fillText('INSIDE OUT', X(g.Cx), Y(g.bb[3]) - 10 * dpr);
+  }
+}
+
+// ===================== telemetry =====================
+const TN = 360, TELE = { cu: [], zu: [], ct: [], zt: [], wu: [], ww: [] };
+let teleAcc = 0;
+function pushT(k, v) { const a = TELE[k]; a.push(v); if (a.length > TN) a.shift(); }
+function sampleTele() {
+  const [c, z] = panels.map(p => p.u);
+  pushT('cu', c.free ? NaN : c.F[1]); pushT('zu', z.free ? NaN : z.F[1]);
+  pushT('ct', c.free ? NaN : c.th / DEG); pushT('zt', z.free ? NaN : z.th / DEG);
+  const w = windAt(H0[0]); pushT('wu', w[0]); pushT('ww', w[1]);
+}
+const CHARTS = [
+  { el: $('#chUp'), unit: 'N', series: [['cu', '#D2702A', [], 'Normal'], ['zu', '#1A9FC2', [], 'ZERO-L']], refs: [INVERT_N], incl: [-20, 70] },
+  { el: $('#chTilt'), unit: '°', series: [['ct', '#D2702A', [], 'Normal'], ['zt', '#1A9FC2', [], 'ZERO-L']], refs: [], incl: [-10, 10] },
+  { el: $('#chWind'), unit: 'm/s', series: [['wu', '#E2EBEC', [], 'along'], ['ww', '#84979D', [5, 4], 'vertical']], refs: [], incl: [-2, 5] },
+];
+CHARTS.forEach(c => {
+  c.cv = c.el.querySelector('canvas'); c.tip = c.el.querySelector('.tip'); c.hover = null; c.lo = c.incl[0]; c.hi = c.incl[1];
+  c.cv.addEventListener('pointermove', e => { const r = c.cv.getBoundingClientRect(); c.hover = (e.clientX - r.left) / r.width; });
+  c.cv.addEventListener('pointerleave', () => { c.hover = null; c.tip.hidden = true; });
+});
+function niceStep(range) { const raw = range / 4, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+function drawChart(c) {
+  const { w, h, dpr } = fit(c.cv), ctx = c.cv.getContext('2d');
+  const L = 38 * dpr, R = 8 * dpr, T = 6 * dpr, B = 18 * dpr, pw = w - L - R, ph = h - T - B;
+  let lo = c.incl[0], hi = c.incl[1];
+  for (const [k] of c.series) for (const v of TELE[k]) if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  c.lo += (lo - c.lo) * 0.08; c.hi += (hi - c.hi) * 0.08;
+  const step = niceStep(c.hi - c.lo), y0 = Math.floor(Math.min(c.lo, lo) / step) * step, y1 = Math.ceil(Math.max(c.hi, hi) / step) * step;
+  const Yv = v => T + (y1 - v) / (y1 - y0) * ph, Xi = i => L + i / (TN - 1) * pw;
+  ctx.clearRect(0, 0, w, h);
+  ctx.font = `${10.5 * dpr}px "IBM Plex Mono", Consolas, monospace`; ctx.fillStyle = '#84979D'; ctx.textAlign = 'right';
+  ctx.strokeStyle = '#1C2B31'; ctx.lineWidth = 1;
+  for (let v = y0; v <= y1 + 1e-9; v += step) { ctx.beginPath(); ctx.moveTo(L, Yv(v)); ctx.lineTo(L + pw, Yv(v)); ctx.stroke(); ctx.fillText(String(Math.round(v * 10) / 10), L - 6 * dpr, Yv(v) + 3.5 * dpr); }
+  ctx.textAlign = 'center';
+  for (const s of [-10, -5, 0]) ctx.fillText(s === 0 ? 'now' : `${s} s`, Xi((TN - 1) * (1 + s / 12)), h - 4 * dpr);
+  if (y0 < 0 && y1 > 0) { ctx.strokeStyle = '#3A4E55'; ctx.lineWidth = 1.2 * dpr; ctx.beginPath(); ctx.moveTo(L, Yv(0)); ctx.lineTo(L + pw, Yv(0)); ctx.stroke(); }
+  for (const r of c.refs) if (r <= y1) { ctx.setLineDash([5 * dpr, 4 * dpr]); ctx.strokeStyle = '#84979D'; ctx.lineWidth = 1.2 * dpr; ctx.beginPath(); ctx.moveTo(L, Yv(r)); ctx.lineTo(L + pw, Yv(r)); ctx.stroke(); ctx.setLineDash([]); }
+  for (const [k, col, dash] of c.series) {
+    const a = TELE[k], off = TN - a.length;
+    ctx.strokeStyle = col; ctx.lineWidth = 2 * dpr; ctx.lineJoin = 'round'; ctx.setLineDash(dash.map(d => d * dpr));
+    ctx.beginPath(); let pen = false;
+    a.forEach((v, i) => { if (!Number.isFinite(v)) { pen = false; return; } const x = Xi(off + i), y = Yv(v); pen ? ctx.lineTo(x, y) : ctx.moveTo(x, y); pen = true; });
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (c.hover !== null) {
+    const xpx = c.hover * w, i = Math.round((xpx - L) / pw * (TN - 1));
+    if (i >= 0 && i < TN) {
+      ctx.strokeStyle = '#84979D'; ctx.lineWidth = 1 * dpr; ctx.beginPath(); ctx.moveTo(Xi(i), T); ctx.lineTo(Xi(i), T + ph); ctx.stroke();
+      const rows = [];
+      for (const [k, col, , name] of c.series) {
+        const a = TELE[k], j = i - (TN - a.length), v = a[j];
+        if (Number.isFinite(v)) { ctx.fillStyle = col; ctx.beginPath(); ctx.arc(Xi(i), Yv(v), 4 * dpr, 0, 7); ctx.fill(); rows.push(`${name}: ${v.toFixed(c.unit === 'N' ? 0 : 1)} ${c.unit}`); }
+      }
+      const ago = ((TN - 1 - i) / 30).toFixed(1);
+      c.tip.innerHTML = `<div style="color:var(--ink-3)">${ago} s ago</div>` + rows.map(r => `<div>${r}</div>`).join('');
+      c.tip.hidden = false;
+      const cssX = Xi(i) / dpr, tw = c.tip.offsetWidth, cw = w / dpr;
+      c.tip.style.left = (cssX + 24 + tw > cw ? cssX - tw + 2 : cssX + 24) + 'px';
+    }
+  }
+}
+
+// ===================== HUD =====================
+function updateHud() {
+  $('#clock').textContent = `t = ${st.t.toFixed(1)} s${st.paused ? ' · paused' : ''}`;
+  for (const p of panels) {
+    const u = p.u, gp = GRIP[st.grip], isC = u.kind === 'conv', tag = isC ? 'C' : 'Z';
+    const pills = [];
+    if (u.free) pills.push(['crit', '✕', 'Blown away']);
+    else if (u.inverted) pills.push(['crit', '✕', 'Inside out']);
+    else if (u.sat || u.Fh > 0.7 * gp.gripN) pills.push(['warn', '▲', 'Hard to hold']);
+    else pills.push(['good', '✓', 'Holding']);
+    if (!isC && !u.free && u.relief > 0.1) pills.push(['info', '≈', 'Valves venting']);
+    $('#pills' + tag).innerHTML = pills.map(([k, i, t]) => `<span class="pill ${k}"><span aria-hidden="true">${i}</span>${t}</span>`).join('');
+    const fz = u.free ? null : u.F[1];
+    const cells = [
+      ['Uplift', fz === null ? '–' : `${fz >= 0 ? '' : '−'}${Math.abs(Math.round(fz))} N`],
+      ['Drag', u.free ? '–' : `${Math.round(Math.abs(u.F[0]))} N`],
+      ['Tilt', u.free ? '–' : `${(u.th / DEG).toFixed(0)}°`],
+      ['Hand load', u.free ? '–' : `${Math.round(u.Fh)} N`],
+      ['Head+shoulders', `${p.rateHS.toFixed(0)} mL/min`],
+    ];
+    $('#nums' + tag).innerHTML = cells.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+  }
+  $('#flip').disabled = !(panels[0].u.inverted && !panels[0].u.free);
+}
+
+// ===================== controls =====================
+const BF_LIM = [0.5, 1.6, 3.4, 5.5, 8.0, 10.8, 13.9, 17.2, 20.8, 24.5, 28.5, 32.7];
+const BF_NAME = ['calm', 'light air', 'light breeze', 'gentle breeze', 'moderate breeze', 'fresh breeze', 'strong breeze', 'near gale', 'gale', 'strong gale', 'storm', 'violent storm', 'hurricane force'];
+const beaufort = U => { let b = 0; while (b < 12 && U >= BF_LIM[b]) b++; return b; };
+const PRESETS = {
+  drizzle: { U: 3, I: 0.15, R: 3 }, shower: { U: 7, I: 0.25, R: 15 }, monsoon: { U: 10, I: 0.28, R: 60 },
+  gale: { U: 15, I: 0.22, R: 25 }, storm: { U: 22, I: 0.25, R: 40 },
+};
+function syncUi() {
+  const b = beaufort(st.U);
+  $('#wind').value = st.U; $('#turb').value = st.I; $('#rain').value = st.R; $('#tilt').value = st.tilt;
+  $('#windOut').textContent = `${st.U} m/s`;
+  $('#windHint').textContent = `${Math.round(st.U * 3.6)} km/h · Beaufort ${b}, ${BF_NAME[b]}`;
+  $('#turbOut').textContent = `${Math.round(st.I * 100)}%`;
+  $('#turbHint').textContent = st.I < 0.08 ? 'steady air' : st.I < 0.18 ? 'open field' : st.I < 0.26 ? 'suburb' : st.I < 0.34 ? 'city street' : 'squalls between buildings';
+  $('#rainOut').textContent = `${st.R} mm/h`;
+  $('#rainHint').textContent = st.R === 0 ? 'dry' : st.R < 2.5 ? 'drizzle' : st.R < 10 ? 'moderate rain' : st.R < 50 ? 'heavy rain' : 'cloudburst';
+  $('#tiltOut').textContent = st.tilt === 0 ? 'level' : st.tilt > 0 ? `${st.tilt}° into the wind` : `${-st.tilt}° away`;
+  $('#gripHint').textContent = st.grip === 'one' ? 'Up to 26 N·m of twist, lost above 170 N' : 'Up to 50 N·m of twist, lost above 280 N';
+  $('#valveHint').textContent = st.valves === 'one' ? 'As designed: clip upward gusts only' : 'Also clip downward gusts (Dorade-trap top flaps)';
+  document.querySelectorAll('[data-grip]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.grip === st.grip)));
+  document.querySelectorAll('[data-valves]').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.valves === st.valves)));
+  document.querySelectorAll('[data-speed]').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.speed === st.speed)));
+  document.querySelectorAll('[data-preset]').forEach(x => { const q = PRESETS[x.dataset.preset]; x.setAttribute('aria-pressed', String(q.U === st.U && q.I === st.I && q.R === st.R)); });
+  $('#play').textContent = st.paused ? 'Play' : 'Pause';
+}
+function setRain() { for (const p of panels) setRainRate(p.rain); }
+$('#wind').addEventListener('input', e => { st.U = +e.target.value; syncUi(); });
+$('#turb').addEventListener('input', e => { st.I = +e.target.value; syncUi(); });
+$('#rain').addEventListener('input', e => { st.R = +e.target.value; setRain(); syncUi(); });
+$('#tilt').addEventListener('input', e => { st.tilt = +e.target.value; syncUi(); });
+document.querySelectorAll('[data-grip]').forEach(b => b.addEventListener('click', () => { st.grip = b.dataset.grip; syncUi(); }));
+document.querySelectorAll('[data-valves]').forEach(b => b.addEventListener('click', () => { st.valves = b.dataset.valves; syncUi(); logEvent('zl', st.valves === 'one' ? 'Switched to one-way valves (as designed)' : 'Switched to two-way valves (phase 2)'); }));
+document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => { st.speed = +b.dataset.speed; syncUi(); }));
+document.querySelectorAll('[data-preset]').forEach(b => b.addEventListener('click', () => { Object.assign(st, PRESETS[b.dataset.preset]); setRain(); syncUi(); logEvent('all', `Scenario: ${b.textContent}`); }));
+$('#walk').addEventListener('change', e => { st.walk = e.target.checked; });
+$('#arrows').addEventListener('change', e => { st.arrows = e.target.checked; });
+$('#flow').addEventListener('change', e => { st.flow = e.target.checked; });
+function sendGust(kind) {
+  const U = Math.max(st.U, 6), arrive = (H0[0] - W.X_IN) / Math.max(st.U, 0.5);
+  const g = kind === 'up' ? { dur: 0.8, du: 0.15 * U, dw: 0.3 * U } : kind === 'down' ? { dur: 0.8, du: 0.15 * U, dw: -0.3 * U } : { dur: 3.5, du: 0.6 * U, dw: 0.04 * U };
+  W.gusts.push(Object.assign({ t0: st.t }, g));
+  const name = kind === 'up' ? 'Gust from below' : kind === 'down' ? 'Gust from above' : 'Squall';
+  logEvent('all', `${name} released upwind; it reaches the umbrellas in ${arrive.toFixed(1)} s`);
+}
+$('#gUp').addEventListener('click', () => sendGust('up'));
+$('#gDown').addEventListener('click', () => sendGust('down'));
+$('#gSquall').addEventListener('click', () => sendGust('squall'));
+$('#play').addEventListener('click', () => { st.paused = !st.paused; syncUi(); });
+$('#flip').addEventListener('click', () => { const u = panels[0].u; if (u.inverted && !u.free) { u.inverted = false; u.invT = 0; logEvent('conv', 'Flipped back the right way'); } });
+$('#reset').addEventListener('click', () => {
+  for (const p of panels) { p.u = newUmb(p.kind); p.rateHS = p.rateBody = p.totHS = 0; p.splash = []; }
+  for (const k in TELE) TELE[k].length = 0;
+  EVENTS.length = 0; $('#log').innerHTML = '<li class="empty">Reset. Events appear here as the storm plays out.</li>';
+});
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && !/INPUT|BUTTON|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); st.paused = !st.paused; syncUi(); }
+});
+
+// ===================== main loop =====================
+let last = performance.now(), acc = 0, lastHud = 0;
+function frame(now) {
+  const real = Math.min(0.05, (now - last) / 1000); last = now;
+  if (!st.paused) {
+    const dt = real * st.speed;
+    acc += dt;
+    while (acc >= DT) { acc -= DT; physStep(); }
+    for (const p of panels) { p.geo = canopyGeom(p.u); rainStep(p, dt); stepSplash(p, dt); stepTracers(p, dt); }
+    st.walkOff += walkV() * dt; st.legPh += (st.walk ? 2 * Math.PI * 0.95 : 0) * dt;
+    teleAcc += dt; while (teleAcc >= 1 / 30) { teleAcc -= 1 / 30; sampleTele(); }
+  }
+  for (const p of panels) { p.geo = canopyGeom(p.u); drawScene(p); }
+  CHARTS.forEach(drawChart);
+  if (now - lastHud > 120) { updateHud(); lastHud = now; }
+  requestAnimationFrame(frame);
+}
+fillWind();
+for (const p of panels) { p.geo = canopyGeom(p.u); setRainRate(p.rain); }
+if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) st.paused = true;
+syncUi(); updateHud();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
