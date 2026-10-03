@@ -39,7 +39,7 @@ Both umbrellas are 1.05 m across. The numbers come from the force model in [`mod
 1. **Symmetric double-wedge canopy.** Top and bottom skins are mirror images: 10° faces, 185 mm deep, a sharp rim. A section with no camber makes no lift when held level in level wind, from any compass direction, because the canopy is round.
 2. **Closed lower skin.** There is no cup for a gust to fill and nothing that acts like a parachute.
 3. **Tied-down rib tips.** A 2 mm Dyneema stay runs from each rib tip to the runner. Hub, tip and runner form a triangle, so the tip cannot rise without stretching the stay: T = P / (2 sin 10°) ≈ 2.9 P. Inversion is blocked by geometry, not resisted by stiffness.
-4. **One-way gust valves.** 16 shingled flaps in each skin open when pressure from below passes 15 Pa. They clip upward gusts and stay shut against downward ones, so the umbrella can push into your hand but cannot pull out of it.
+4. **One-way gust valves.** 16 shingled flaps in each skin open when pressure from below passes 15 Pa. They clip upward gusts and stay shut against downward ones, so the umbrella can push into your hand but cannot pull out of it. The [storm simulator](#simulation) shows the cost of leaving downward gusts unrelieved in strong wind, which is why two-way valves are planned for phase 2.
 5. **Drip control.** The knife-edge rim sheds water cleanly; a drip ring on the shaft stops what runs down.
 6. **Double-skin sun shield.** A reflective UPF 50+ top skin over a 185 mm air gap acts as a radiant barrier.
 
@@ -86,7 +86,7 @@ Each valve is a pair: a flap on the top skin that opens outward and a flap on th
 2. **Light rain, still air.** It works like any umbrella; water leaves at the knife-edge rim, clear of your shoulders.
 3. **The wind rises.** Keep it level. There is no steady lift to fight, and the sideways push is about 6 N at 15 m/s instead of 47 N.
 4. **A gust from below.** The valves flick open and the tug stays small: about 21 N instead of 118 N. The tied rib tips cannot flip.
-5. **A gust from above.** The valves stay shut and the canopy pushes down into your hand for a moment, up to about 40 N. It cannot be torn upward out of your grip.
+5. **A gust from above.** The valves stay shut and the canopy pushes down into your hand for a moment, up to about 40 N, and twists its windward edge down. It cannot be torn upward out of your grip, but above about 11 m/s in gusty air, hold it with both hands.
 6. **Rain starts driving sideways.** Tip it about 10° into the wind. That covers your head and shoulders and turns the force into a steady downward push.
 7. **Strong sun.** The reflective top and the air gap keep the underside near air temperature. Hold it lower to shade your shoulders.
 8. **Close it and dry it.** Dry it open; the valves let air through the gap between the skins.
@@ -153,20 +153,20 @@ The first working ZERO-L can be built on the frame of an ordinary 8-rib stick um
 | Gust valves | 16 top + 16 lower flaps, 12% of planform, opening at 15 Pa |
 | Mass | about 600 g (estimate) |
 | Closed length | about 80 cm |
-| Design wind | controllable to 20 m/s (Beaufort 8); undamaged to 35 m/s (to be verified) |
+| Design wind | in gusty city air: holds to about 11 m/s one-handed and 15 m/s two-handed with one-way valves; about 15 m/s one-handed and 20 m/s two-handed with two-way valves (storm simulator); undamaged to 35 m/s (to be verified) |
 
 ## What it cannot do
 
 - **Stop sideways rain.** At 15 m/s rain arrives 67° from vertical (2 mm drops fall at 6.5 m/s). No overhead canopy covers more than head and shoulders then. Tipping it into the rain buys cover but brings back lift. A louvered storm skirt that catches drops by inertia is the next add-on to test.
-- **Ignore vertical gusts.** Air moving up or down through the canopy changes its angle of attack. ZERO-L's mean lift is zero and upward spikes are clipped, but downward pushes of about 40 N remain at 15 m/s with ±10° gusts. Two-way rain-proof valves (Dorade-box style) are phase 2.
+- **Ignore vertical gusts.** Air moving up or down through the canopy changes its angle of attack. ZERO-L's mean lift is zero and upward spikes are clipped, but downward pushes of about 40 N remain at 15 m/s with ±10° gusts. Gust lift also acts about 0.25 m upwind of the shaft, so each gust twists the umbrella in your hand; with one-way valves it needs two hands at 15 m/s in gusty air and is lost at 20 m/s (see [Simulation](#simulation)). Two-way rain-proof valves (Dorade-box style, phase 2) are needed to reach the 20 m/s target.
 - **Stay perfectly symmetric in use.** Your head under the canopy and wind shear near the ground leave a small residual lift that has to be measured.
-- **Make a storm walkable.** Above Beaufort 9 (about 21 m/s) people struggle to stand. This is a storm umbrella, not a hurricane tool.
+- **Make a storm walkable.** Above Beaufort 9 (about 21 m/s) people struggle to stand. ZERO-L is meant to stay controllable to 20 m/s, which takes the two-way valves and both hands. This is a storm umbrella, not a hurricane tool.
 
 ## Test plan
 
 1. **Mock-up** from a donor umbrella, stays at about 40 N, no valves yet.
 2. **Force balance** on a six-component balance or a car-roof rig at 5–25 m/s; sweep −30° to +30°. Pass: |C<sub>L</sub>| < 0.05 at 0°. The sharp rim fixes separation, so a 1:3 model at 30 m/s is acceptable.
-3. **Valves:** measure the opening pressure and uplift curve. Target: upward pull ≤ 25 N at 15 m/s and +10°.
+3. **Valves:** measure the opening pressure and uplift curve. Target: upward pull ≤ 25 N at 15 m/s and +10°. Repeat with two-way flaps and compare the twisting moment at the grip in gusts.
 4. **Inversion attempt:** pitch to +45° at 25 m/s. Pass: no permanent deformation.
 5. **Rain and sun:** 50 mm/h sprinkler rig with a fan; UPF test of the top skin (AS/NZS 4399); underside temperature in full sun.
 6. **Field trial** with a handheld anemometer and a load cell in the grip.
